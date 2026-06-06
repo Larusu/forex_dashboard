@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FX Pulse — Foreign Exchange Dashboard</title>
+
+<!-- ===== Chart libraries (CDN, charts only) ===== -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.2.1/dist/chartjs-chart-financial.min.js"></script>
+
+<style>
+/* =========================================================================
+   THEME TOKENS  —  cool palette only (navy, deep blue, cyan, teal, slate,
+   ice blue, soft mint). No purple anywhere.
+   ========================================================================= */
+:root{
+  --c-cyan:#22d3ee;  --c-teal:#2dd4bf;  --c-blue:#3b82f6;
+  --c-mint:#6ee7b7;  --c-sky:#38bdf8;   --c-slate:#64748b;
+  --c-up:#2dd4bf;    --c-down:#5b8bbf;  /* cool up/down for candles */
+  --radius:18px;
+  --transition:.25s cubic-bezier(.4,0,.2,1);
+  --font:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+}
+
+/* ---------- Dark theme (default) : professional, finance-focused -------- */
+html[data-theme="dark"]{
+  --bg-0:#070d1a;  --bg-1:#0b1428;  --bg-grad:radial-gradient(1200px 600px at 80% -10%,#0f2748 0,transparent 60%),radial-gradient(900px 500px at -10% 110%,#062a33 0,transparent 55%);
+  --card:rgba(17,29,53,.62);
+  --card-solid:#111d35;
+  --border:rgba(120,170,225,.14);
+  --text:#e8f1ff;  --text-dim:#9fb3d1;  --text-faint:#6c84a6;
+  --accent:var(--c-cyan);  --accent-2:var(--c-teal);
+  --shadow:0 18px 45px -20px rgba(0,0,0,.75);
+  --pos:#34d399;   --neg:#5b8bbf;   --grid:rgba(120,170,225,.10);
+  --input:rgba(8,16,32,.7);
+}
+
+/* ---------- Light theme : clean & airy ---------------------------------- */
+html[data-theme="light"]{
+  --bg-0:#eef4fb;  --bg-1:#f6fafe;  --bg-grad:radial-gradient(1100px 600px at 85% -10%,#dceefb 0,transparent 60%),radial-gradient(900px 500px at -10% 110%,#d9f7f0 0,transparent 55%);
+  --card:rgba(255,255,255,.72);
+  --card-solid:#ffffff;
+  --border:rgba(40,90,140,.14);
+  --text:#0c2440;  --text-dim:#3f5b7f;  --text-faint:#73879f;
+  --accent:#0e9bb8;  --accent-2:#0d9488;
+  --shadow:0 16px 38px -22px rgba(20,60,110,.40);
+  --pos:#0d9488;   --neg:#4f7eb0;   --grid:rgba(40,90,140,.10);
+  --input:rgba(255,255,255,.85);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:var(--font);
+  color:var(--text);
+  background:var(--bg-0);
+  background-image:var(--bg-grad);
+  background-attachment:fixed;
+  min-height:100vh;
+  line-height:1.45;
+  transition:background var(--transition),color var(--transition);
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ===== Layout shell ===== */
+.wrap{max-width:1320px;margin:0 auto;padding:22px clamp(14px,3vw,34px) 60px}
+
+/* ===== Glass card ===== */
+.card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  backdrop-filter:blur(14px) saturate(140%);
+  -webkit-backdrop-filter:blur(14px) saturate(140%);
+  padding:20px;
+  transition:transform var(--transition),box-shadow var(--transition),border var(--transition);
+}
+.card:hover{transform:translateY(-3px);box-shadow:0 24px 55px -22px rgba(0,0,0,.6)}
+.card h2,.card h3{font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+
+/* ===== Header ===== */
+header.topbar{
+  display:flex;flex-wrap:wrap;align-items:center;gap:14px;
+  margin-bottom:22px;
+}
+.brand{display:flex;align-items:center;gap:12px;margin-right:auto}
+.logo{
+  width:44px;height:44px;border-radius:13px;flex:none;
+  background:linear-gradient(135deg,var(--c-cyan),var(--c-teal));
+  display:grid;place-items:center;color:#04222b;font-weight:900;font-size:1.2rem;
+  box-shadow:0 8px 22px -6px var(--c-cyan);
+}
+.brand h1{font-size:1.25rem;letter-spacing:.3px}
+.brand small{display:block;color:var(--text-faint);font-size:.72rem;letter-spacing:.18em;text-transform:uppercase}
+
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.field{display:flex;flex-direction:column;gap:3px}
+.field label{font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--text-faint);padding-left:4px}
+select,input,button{font-family:inherit;color:var(--text)}
+select,input{
+  background:var(--input);border:1px solid var(--border);border-radius:11px;
+  padding:9px 12px;font-size:.9rem;min-width:120px;outline:none;transition:border var(--transition),box-shadow var(--transition);
+}
+select:focus,input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 25%,transparent)}
+
+.btn{
+  cursor:pointer;border:1px solid var(--border);border-radius:11px;
+  background:var(--input);padding:9px 14px;font-size:.85rem;font-weight:600;
+  display:inline-flex;align-items:center;gap:7px;transition:all var(--transition);
+}
+.btn:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-1px)}
+.btn.primary{background:linear-gradient(135deg,var(--c-cyan),var(--c-teal));color:#03222b;border:none}
+.btn.primary:hover{filter:brightness(1.08);color:#03222b}
+.btn.icon{padding:9px 11px}
+#refreshBtn.spin svg{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.updated{font-size:.72rem;color:var(--text-faint);display:flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--pos);box-shadow:0 0 8px var(--pos)}
+
+/* ===== Grid ===== */
+.grid{display:grid;gap:18px}
+.top-grid{grid-template-columns:minmax(0,1.25fr) minmax(0,1.15fr) minmax(0,.9fr);margin-bottom:18px;align-items:start}
+.chart-grid{grid-template-columns:1fr 1fr;margin-bottom:18px}
+.bottom-grid{grid-template-columns:1.4fr 1fr;margin-bottom:18px}
+@media(max-width:1040px){.top-grid,.chart-grid,.bottom-grid{grid-template-columns:1fr}}
+
+/* ===== Current value card ===== */
+.pair-row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.pair-row .pair{font-size:1rem;color:var(--text-dim);font-weight:600}
+.rate{font-size:clamp(2.2rem,5vw,3rem);font-weight:800;letter-spacing:-1px;line-height:1.1;
+  background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{margin-top:6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:var(--text-dim);font-size:.9rem}
+.change{font-weight:700}
+.change.up{color:var(--pos)} .change.down{color:var(--neg)}
+
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;font-weight:700;
+  padding:5px 11px;border-radius:999px;letter-spacing:.04em;border:1px solid transparent}
+.badge.up{background:color-mix(in srgb,var(--pos) 16%,transparent);color:var(--pos);border-color:color-mix(in srgb,var(--pos) 35%,transparent)}
+.badge.down{background:color-mix(in srgb,var(--neg) 16%,transparent);color:var(--neg);border-color:color-mix(in srgb,var(--neg) 35%,transparent)}
+.badge.flat{background:color-mix(in srgb,var(--c-slate) 20%,transparent);color:var(--text-dim);border-color:color-mix(in srgb,var(--c-slate) 35%,transparent)}
+
+.mini-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}
+.mini{background:var(--input);border:1px solid var(--border);border-radius:12px;padding:10px}
+.mini .k{font-size:.62rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-faint)}
+.mini .v{font-size:1rem;font-weight:700;margin-top:3px}
+
+/* ===== AI / pattern lists ===== */
+.insight{display:flex;gap:11px;padding:11px 0;border-bottom:1px dashed var(--border)}
+.insight:last-child{border-bottom:none}
+.insight .ic{flex:none;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:.95rem;
+  background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)}
+.insight p{font-size:.86rem;color:var(--text);line-height:1.4}
+.insight p span{color:var(--text-faint);display:block;font-size:.74rem;margin-top:2px}
+
+.pattern{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px dashed var(--border)}
+.pattern:last-child{border-bottom:none}
+.tag{font-size:.66rem;font-weight:800;letter-spacing:.05em;padding:4px 9px;border-radius:8px;flex:none;text-transform:uppercase}
+.tag.t-up{background:color-mix(in srgb,var(--c-teal) 20%,transparent);color:var(--c-teal)}
+.tag.t-down{background:color-mix(in srgb,var(--c-down) 22%,transparent);color:var(--neg)}
+.tag.t-flat{background:color-mix(in srgb,var(--c-slate) 22%,transparent);color:var(--text-dim)}
+.tag.t-vol{background:color-mix(in srgb,var(--c-sky) 22%,transparent);color:var(--c-sky)}
+.tag.t-break{background:color-mix(in srgb,var(--c-cyan) 22%,transparent);color:var(--c-cyan)}
+.pattern small{color:var(--text-dim);font-size:.8rem}
+
+/* ===== Charts ===== */
+.chart-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.chart-box{position:relative;height:320px}
+.range-btns{display:flex;gap:6px;background:var(--input);padding:4px;border-radius:11px;border:1px solid var(--border)}
+.range-btns button{border:none;background:transparent;color:var(--text-dim);font-size:.78rem;font-weight:600;
+  padding:5px 11px;border-radius:8px;cursor:pointer;transition:all var(--transition)}
+.range-btns button.active{background:linear-gradient(135deg,var(--c-cyan),var(--c-teal));color:#04222b}
+.est-note{font-size:.7rem;color:var(--text-faint);font-style:italic;margin-top:8px}
+
+/* ===== Heatmap ===== */
+.heat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
+.heat-cell{border-radius:13px;padding:14px 12px;color:#eafcff;position:relative;overflow:hidden;
+  border:1px solid rgba(255,255,255,.08);transition:transform var(--transition)}
+.heat-cell:hover{transform:scale(1.04)}
+.heat-cell .code{font-weight:800;font-size:1.05rem;letter-spacing:.04em}
+.heat-cell .pct{font-size:.78rem;opacity:.92;font-weight:600;margin-top:3px}
+.heat-cell .lbl{font-size:.62rem;opacity:.8;text-transform:uppercase;letter-spacing:.08em;margin-top:6px}
+.heat-legend{display:flex;align-items:center;gap:10px;margin-top:14px;font-size:.72rem;color:var(--text-faint)}
+.heat-bar{flex:1;height:9px;border-radius:6px;background:linear-gradient(90deg,#0b2233,#0e4a5a,#138a8a,#1fb6a6,#7ff0c8)}
+
+/* ===== Calculator ===== */
+.calc-grid{display:grid;grid-template-columns:1fr auto 1fr;gap:9px;align-items:end}
+@media(max-width:540px){.calc-grid{grid-template-columns:1fr}}
+.calc-grid select,.calc-grid input{min-width:0}
+.calc-swap{align-self:end;margin-bottom:2px}
+.calc-result{margin-top:12px;background:var(--input);border:1px solid var(--border);border-radius:14px;padding:12px;text-align:center}
+.calc-result .big{font-size:clamp(1.3rem,3vw,1.65rem);font-weight:800;
+  background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.calc-result .rate-line{font-size:.78rem;color:var(--text-faint);margin-top:5px}
+
+/* ===== Table ===== */
+.table-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.table-tools input{flex:1;min-width:160px}
+.table-scroll{max-height:430px;overflow:auto;border-radius:12px}
+table{width:100%;border-collapse:collapse;font-size:.86rem}
+thead th{position:sticky;top:0;background:var(--card-solid);text-align:left;padding:11px 12px;
+  font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint);cursor:pointer;user-select:none;white-space:nowrap;border-bottom:1px solid var(--border)}
+thead th:hover{color:var(--accent)}
+thead th .arr{opacity:.5;font-size:.7rem}
+tbody td{padding:10px 12px;border-bottom:1px solid var(--border)}
+tbody tr{transition:background var(--transition)}
+tbody tr:hover{background:color-mix(in srgb,var(--accent) 8%,transparent)}
+tbody td.code{font-weight:700}
+tbody td.name{color:var(--text-dim)}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.row-strong{box-shadow:inset 3px 0 0 var(--c-teal)}
+.row-weak{box-shadow:inset 3px 0 0 var(--c-down)}
+.pill{font-size:.68rem;font-weight:700;padding:3px 8px;border-radius:7px}
+.pill.up{background:color-mix(in srgb,var(--pos) 16%,transparent);color:var(--pos)}
+.pill.down{background:color-mix(in srgb,var(--neg) 18%,transparent);color:var(--neg)}
+.pill.flat{background:color-mix(in srgb,var(--c-slate) 20%,transparent);color:var(--text-dim)}
+.lead{font-size:.64rem;font-weight:800;letter-spacing:.06em;margin-left:6px;padding:2px 6px;border-radius:6px;text-transform:uppercase}
+.lead.s{background:color-mix(in srgb,var(--c-teal) 22%,transparent);color:var(--c-teal)}
+.lead.w{background:color-mix(in srgb,var(--c-down) 24%,transparent);color:var(--neg)}
+
+/* ===== Loading / skeleton / error ===== */
+.skeleton{background:linear-gradient(90deg,var(--input) 25%,color-mix(in srgb,var(--accent) 10%,var(--input)) 50%,var(--input) 75%);
+  background-size:200% 100%;animation:shimmer 1.3s infinite;border-radius:8px;color:transparent!important}
+@keyframes shimmer{to{background-position:-200% 0}}
+#overlay{position:fixed;inset:0;background:color-mix(in srgb,var(--bg-0) 70%,transparent);backdrop-filter:blur(3px);
+  display:none;place-items:center;z-index:50}
+#overlay.show{display:grid}
+.loader{display:flex;flex-direction:column;align-items:center;gap:14px;color:var(--text-dim);font-size:.85rem}
+.ring{width:46px;height:46px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--accent);animation:spin .8s linear infinite}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(120%);
+  background:var(--card-solid);border:1px solid var(--neg);color:var(--text);padding:13px 18px;border-radius:13px;
+  box-shadow:var(--shadow);z-index:60;transition:transform .35s ease;max-width:90vw;font-size:.86rem;display:flex;gap:10px;align-items:center}
+#toast.show{transform:translateX(-50%) translateY(0)}
+#toast .x{cursor:pointer;color:var(--text-faint)}
+
+footer{text-align:center;color:var(--text-faint);font-size:.74rem;margin-top:30px;line-height:1.6}
+footer a{color:var(--accent);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============================ HEADER ============================ -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">₣</div>
+      <div>
+        <h1>FX&nbsp;Pulse</h1>
+        <small>Foreign Exchange Dashboard</small>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="field">
+        <label for="baseSel">Base</label>
+        <select id="baseSel" aria-label="Base currency"></select>
+      </div>
+      <div class="field">
+        <label for="targetSel">Target</label>
+        <select id="targetSel" aria-label="Target currency"></select>
+      </div>
+      <button class="btn icon" id="refreshBtn" title="Refresh data" aria-label="Refresh">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15"/></svg>
+      </button>
+      <button class="btn icon" id="themeBtn" title="Toggle theme" aria-label="Toggle theme">
+        <span id="themeIcon">🌙</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="updated" style="margin:-8px 0 18px 2px">
+    <span class="dot"></span> Last updated: <strong id="updatedAt">—</strong>
+    <span id="srcLabel" style="margin-left:6px"></span>
+  </div>
+
+  <!-- ====================== TOP ROW : value / AI / calculator ====================== -->
+  <section class="grid top-grid">
+
+    <!-- Current value -->
+    <article class="card" id="valueCard">
+      <h2>📈 Current Value</h2>
+      <div class="pair-row">
+        <span class="pair" id="pairLabel">—/—</span>
+        <span class="badge flat" id="trendBadge">Stable</span>
+      </div>
+      <div class="rate" id="rateBig">—</div>
+      <div class="sub">
+        <span class="change flat" id="changeVal">—</span>
+        <span class="pair" id="changeNote">daily change</span>
+      </div>
+      <div class="mini-stats">
+        <div class="mini"><div class="k">7D High</div><div class="v" id="m7high">—</div></div>
+        <div class="mini"><div class="k">7D Low</div><div class="v" id="m7low">—</div></div>
+        <div class="mini"><div class="k">Volatility</div><div class="v" id="mvol">—</div></div>
+      </div>
+    </article>
+
+    <!-- AI insight -->
+    <article class="card" id="aiCard">
+      <h2>🤖 AI Insight</h2>
+      <div id="aiList">
+        <div class="insight"><div class="ic">…</div><p>Analyzing market data…</p></div>
+      </div>
+    </article>
+
+    <!-- Calculator -->
+    <article class="card" id="calcCard">
+      <h2>🧮 Currency Calculator</h2>
+      <div class="calc-grid">
+        <div class="field">
+          <label for="calcAmount">Amount</label>
+          <input type="number" id="calcAmount" value="100" min="0" step="any" />
+          <select id="calcFrom" style="margin-top:8px"></select>
+        </div>
+        <button class="btn icon calc-swap" id="calcSwap" title="Swap currencies">⇄</button>
+        <div class="field">
+          <label for="calcTo">Converts to</label>
+          <select id="calcTo"></select>
+        </div>
+      </div>
+      <div class="calc-result">
+        <div class="big" id="calcOut">—</div>
+        <div class="rate-line" id="calcRate">—</div>
+      </div>
+    </article>
+  </section>
+
+  <!-- ====================== CHART ROW : candlestick / line ====================== -->
+  <section class="grid chart-grid">
+    <article class="card">
+      <div class="chart-head">
+        <h2 style="margin:0">🕯️ Candlestick — Daily Estimated Candles</h2>
+      </div>
+      <div class="chart-box"><canvas id="candleChart"></canvas></div>
+      <p class="est-note">* Estimated candles: previous-day rate = open, current-day rate = close; high/low approximated from daily range &amp; recent volatility. Not exchange-provided OHLC.</p>
+    </article>
+
+    <article class="card">
+      <div class="chart-head">
+        <h2 style="margin:0">📉 Historical Rate</h2>
+        <div class="range-btns" id="rangeBtns">
+          <button data-d="7">7D</button>
+          <button data-d="14">14D</button>
+          <button data-d="30" class="active">30D</button>
+          <button data-d="90">90D</button>
+        </div>
+      </div>
+      <div class="chart-box"><canvas id="lineChart"></canvas></div>
+      <p class="est-note">Solid line = exchange rate · dashed line = 7-period moving average.</p>
+    </article>
+  </section>
+
+  <!-- ====================== HEATMAP + PATTERNS ====================== -->
+  <section class="grid bottom-grid">
+    <article class="card">
+      <h2>🌡️ Currency Strength Heatmap <span style="text-transform:none;letter-spacing:0;font-weight:500;color:var(--text-faint)">(7-day, basket-weighted)</span></h2>
+      <div class="heat-grid" id="heatGrid"></div>
+      <div class="heat-legend"><span>Weak</span><div class="heat-bar"></div><span>Strong</span></div>
+    </article>
+
+    <!-- Patterns -->
+    <article class="card" id="patternCard">
+      <h2>🔎 Pattern &amp; Trend Analysis</h2>
+      <div id="patternList">
+        <div class="pattern"><span class="tag t-flat">scan</span><small>Detecting patterns…</small></div>
+      </div>
+    </article>
+  </section>
+
+  <!-- ====================== TABLE ====================== -->
+  <section class="card">
+    <h2>💱 Exchange Rates <span style="text-transform:none;letter-spacing:0;font-weight:500;color:var(--text-faint)" id="tableBaseLbl"></span></h2>
+    <div class="table-tools">
+      <input type="search" id="tableSearch" placeholder="Search currency code or name…" />
+      <span class="updated" id="tableCount"></span>
+    </div>
+    <div class="table-scroll">
+      <table id="rateTable">
+        <thead>
+          <tr>
+            <th data-sort="code">Code <span class="arr"></span></th>
+            <th data-sort="name">Name <span class="arr"></span></th>
+            <th data-sort="rate" class="num">Rate <span class="arr"></span></th>
+            <th data-sort="change" class="num">Change % <span class="arr"></span></th>
+            <th data-sort="change">Trend</th>
+          </tr>
+        </thead>
+        <tbody id="rateBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    Data: <a href="https://github.com/fawazahmed0/exchange-api" target="_blank" rel="noopener">fawazahmed0/exchange-api</a> · free, daily rates · automatic CDN fallback.<br/>
+    Candlestick OHLC is estimated from daily values for illustration only. Not financial advice.
+  </footer>
+</div>
+
+<!-- Loading overlay + error toast -->
+<div id="overlay"><div class="loader"><div class="ring"></div><span id="loadMsg">Fetching exchange data…</span></div></div>
+<div id="toast"><span id="toastMsg"></span><span class="x" onclick="document.getElementById('toast').classList.remove('show')">✕</span></div>
+
+<script>
+"use strict";
+/* =========================================================================
+   FX PULSE — single-file dashboard logic
+   ---------------------------------------------------------------------------
+   Sections:
+     1. Config & state
+     2. API layer (fetch with CDN fallback + caching)
+     3. Math/analysis helpers (MA, volatility, slope, patterns)
+     4. Rendering (current value, table, heatmap, charts, AI, patterns)
+     5. Calculator
+     6. Theme + events + init
+   ========================================================================= */
+
+/* -------------------- 1. CONFIG & STATE -------------------- */
+const MAJORS = ["usd","eur","gbp","jpy","aud","cad","chf","cny","sgd","php"];
+const FALLBACK_NAMES = {usd:"US Dollar",eur:"Euro",gbp:"British Pound",jpy:"Japanese Yen",
+  aud:"Australian Dollar",cad:"Canadian Dollar",chf:"Swiss Franc",cny:"Chinese Yuan",
+  sgd:"Singapore Dollar",php:"Philippine Peso",hkd:"Hong Kong Dollar",nzd:"New Zealand Dollar",
+  inr:"Indian Rupee",krw:"South Korean Won",thb:"Thai Baht",myr:"Malaysian Ringgit"};
+
+const state = {
+  base:"usd",
+  target:"php",
+  range:30,
+  names:{},          // code -> name
+  latest:null,       // latest base file: {date, base:{...}}
+  yesterday:null,    // most recent prior day base file
+  series:[],         // [{date, rate}] for selected target over range
+  candles:[],        // [{x,o,h,l,c}]
+  table:[],          // computed table rows
+  sort:{key:"code",dir:1},
+  cache:new Map(),   // url -> json
+};
+
+/* -------------------- 2. API LAYER -------------------- */
+// Build the candidate URLs (primary jsDelivr, then pages.dev fallback).
+function urlsLatest(base){
+  return [
+    `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${base}.json`,
+    `https://latest.currency-api.pages.dev/v1/currencies/${base}.json`
+  ];
+}
+function urlsDated(base,date){
+  return [
+    `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@${date}/v1/currencies/${base}.json`,
+    `https://${date}.currency-api.pages.dev/v1/currencies/${base}.json`
+  ];
+}
+function urlsNames(){
+  return [
+    `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies.json`,
+    `https://latest.currency-api.pages.dev/v1/currencies.json`
+  ];
+}
+
+// Try each URL in order (with a hard timeout so a stalled request can't hang
+// the dashboard); first success wins. Throws if all fail.
+async function fetchJson(urls,timeoutMs=10000){
+  const key = urls[0];
+  if(state.cache.has(key)) return state.cache.get(key);
+  let lastErr;
+  for(const u of urls){
+    const ctrl=new AbortController();
+    const timer=setTimeout(()=>ctrl.abort(),timeoutMs);
+    try{
+      const res = await fetch(u,{signal:ctrl.signal});
+      clearTimeout(timer);
+      if(!res.ok) throw new Error("HTTP "+res.status);
+      const json = await res.json();
+      state.cache.set(key,json);
+      return json;
+    }catch(e){ clearTimeout(timer); lastErr = e; }
+  }
+  throw lastErr || new Error("All endpoints failed");
+}
+
+// Run async tasks with a concurrency cap (avoids jsDelivr burst throttling
+// when fetching many date-tagged files for the historical series).
+async function mapLimit(items,limit,fn){
+  const out=new Array(items.length);
+  let idx=0;
+  async function worker(){ while(idx<items.length){ const i=idx++; out[i]=await fn(items[i],i); } }
+  await Promise.all(Array.from({length:Math.min(limit,items.length)},worker));
+  return out;
+}
+
+// All historical dates are derived from the *latest data date* (not the wall
+// clock) so the API and the dashboard stay in sync.
+function latestDate(){ return state.latest?.date ? new Date(state.latest.date+"T00:00:00Z") : new Date(); }
+function ymdMinus(baseDate,n){ const d=new Date(baseDate); d.setUTCDate(d.getUTCDate()-n); return d.toISOString().slice(0,10); }
+
+// Latest rates for a base currency.
+async function getLatest(base){ return fetchJson(urlsLatest(base)); }
+
+// Rates for a specific date; returns null if unavailable (no throw).
+async function getDated(base,date){
+  try{ return await fetchJson(urlsDated(base,date)); }
+  catch{ return null; }
+}
+
+// Find the most recent available historical file before the latest date,
+// scanning back up to `maxBack` days.
+async function getRecentPast(base,startOff,maxBack){
+  const ld=latestDate();
+  for(let i=startOff;i<startOff+maxBack;i++){
+    const data = await getDated(base, ymdMinus(ld,i));
+    if(data && data[base]) return data;
+  }
+  return null;
+}
+
+/* -------------------- 3. ANALYSIS HELPERS -------------------- */
+const mean = a => a.reduce((s,x)=>s+x,0)/(a.length||1);
+function stdev(a){ const m=mean(a); return Math.sqrt(mean(a.map(x=>(x-m)**2))); }
+
+// Simple moving average series (window w) aligned to input length (null padded).
+function sma(arr,w){
+  return arr.map((_,i)=> i<w-1 ? null : mean(arr.slice(i-w+1,i+1)));
+}
+// Daily % returns.
+function returns(arr){ const r=[]; for(let i=1;i<arr.length;i++) r.push((arr[i]-arr[i-1])/arr[i-1]); return r; }
+// Normalised linear-regression slope (% per step) for trend strength.
+function slopePct(arr){
+  const n=arr.length; if(n<2) return 0;
+  const xs=arr.map((_,i)=>i), mx=mean(xs), my=mean(arr);
+  let num=0,den=0;
+  for(let i=0;i<n;i++){ num+=(xs[i]-mx)*(arr[i]-my); den+=(xs[i]-mx)**2; }
+  const slope = den? num/den : 0;
+  return (slope/my)*100; // % of mean per step
+}
+
+// Build estimated daily candles from a close series.
+function buildCandles(series){
+  if(series.length<2) return [];
+  const closes = series.map(p=>p.rate);
+  const rets = returns(closes);
+  const vol = stdev(rets); // typical daily move (fraction)
+  const out=[];
+  for(let i=1;i<series.length;i++){
+    const open=closes[i-1], close=closes[i];
+    const body=Math.abs(close-open);
+    // wick estimate: at least the body, padded by recent volatility
+    const wick = Math.max(body*0.6, close*vol*0.9);
+    const hi = Math.max(open,close)+wick;
+    const lo = Math.min(open,close)-wick;
+    out.push({ x: luxon.DateTime.fromISO(series[i].date).toMillis(), o:open, h:hi, l:lo, c:close });
+  }
+  return out;
+}
+
+// Detect market patterns from a close series. Returns [{tag,cls,text}].
+function detectPatterns(series){
+  const closes = series.map(p=>p.rate);
+  if(closes.length<5) return [{tag:"info",cls:"t-flat",text:"Not enough history to analyse patterns."}];
+  const out=[];
+  const rets=returns(closes);
+  const vol=stdev(rets)*100;
+  const slope=slopePct(closes);
+  const last=closes[closes.length-1];
+  const sShort=sma(closes,5), sLong=sma(closes,Math.min(10,closes.length-1));
+  const maShort=sShort[sShort.length-1], maLong=sLong[sLong.length-1];
+
+  // Trend (via regression slope)
+  if(slope>0.12) out.push({tag:"Uptrend",cls:"t-up",text:`Rate is rising ~${slope.toFixed(2)}% per day on a regression fit.`});
+  else if(slope<-0.12) out.push({tag:"Downtrend",cls:"t-down",text:`Rate is falling ~${Math.abs(slope).toFixed(2)}% per day on a regression fit.`});
+  else out.push({tag:"Sideways",cls:"t-flat",text:"No clear direction — rate is moving sideways."});
+
+  // Breakout: last value beyond recent range (exclude last point)
+  const prior=closes.slice(0,-1);
+  const hiP=Math.max(...prior), loP=Math.min(...prior);
+  if(last>hiP) out.push({tag:"Breakout ↑",cls:"t-break",text:"Closed above its recent high — upside breakout."});
+  else if(last<loP) out.push({tag:"Breakout ↓",cls:"t-break",text:"Closed below its recent low — downside breakout."});
+
+  // Volatility spike: recent vol vs earlier vol
+  if(rets.length>=8){
+    const half=Math.floor(rets.length/2);
+    const recent=stdev(rets.slice(half))*100, early=stdev(rets.slice(0,half))*100;
+    if(recent>early*1.6 && recent>0.25)
+      out.push({tag:"Volatility spike",cls:"t-vol",text:`Recent swings (${recent.toFixed(2)}%) are well above the earlier ${early.toFixed(2)}% baseline.`});
+  }
+
+  // MA crossover (golden/death) in the last step
+  if(maShort!=null && maLong!=null){
+    const pShort=sShort[sShort.length-2], pLong=sLong[sLong.length-2];
+    if(pShort!=null && pLong!=null){
+      if(pShort<=pLong && maShort>maLong) out.push({tag:"Bullish crossover",cls:"t-up",text:"Short MA crossed above long MA — bullish signal."});
+      else if(pShort>=pLong && maShort<maLong) out.push({tag:"Bearish crossover",cls:"t-down",text:"Short MA crossed below long MA — bearish signal."});
+    }
+  }
+  return out;
+}
+
+// Generate human-readable rule-based AI insights.
+function buildInsights(series,base,target){
+  const pair=`${base.toUpperCase()}/${target.toUpperCase()}`;
+  const closes=series.map(p=>p.rate);
+  const out=[];
+  if(closes.length<3){ return [{ic:"ℹ️",t:"Limited history available for "+pair+".",s:""}]; }
+  const slope=slopePct(closes);
+  const totalChg=((closes[closes.length-1]-closes[0])/closes[0])*100;
+  const vol=stdev(returns(closes))*100;
+  const ma7=sma(closes,Math.min(7,closes.length))[closes.length-1];
+  const last=closes[closes.length-1];
+
+  // 1. Directional pressure
+  if(slope>0.12) out.push({ic:"📈",t:`${pair} is showing upward pressure, up ${totalChg.toFixed(2)}% over the last ${closes.length} days.`,s:"Buyers currently in control."});
+  else if(slope<-0.12) out.push({ic:"📉",t:`${pair} is under downward pressure, down ${Math.abs(totalChg).toFixed(2)}% over the last ${closes.length} days.`,s:"Sellers currently in control."});
+  else out.push({ic:"➡️",t:`${pair} is broadly flat (${totalChg>=0?"+":""}${totalChg.toFixed(2)}%) — a consolidation phase.`,s:"Direction unclear; range-bound."});
+
+  // 2. MA momentum
+  if(ma7!=null){
+    if(last>ma7*1.001) out.push({ic:"🟢",t:`Price is above its ${Math.min(7,closes.length)}-day moving average, suggesting bullish momentum.`,s:`Last ${last.toFixed(4)} vs MA ${ma7.toFixed(4)}.`});
+    else if(last<ma7*0.999) out.push({ic:"🔵",t:`Price is below its ${Math.min(7,closes.length)}-day moving average, suggesting bearish momentum.`,s:`Last ${last.toFixed(4)} vs MA ${ma7.toFixed(4)}.`});
+  }
+
+  // 3. Volatility read
+  if(vol>0.6) out.push({ic:"⚡",t:"Volatility is higher than usual, so short-term movement may be unstable.",s:`Avg daily swing ≈ ${vol.toFixed(2)}%.`});
+  else out.push({ic:"🛡️",t:"Volatility is subdued — movements are relatively calm and orderly.",s:`Avg daily swing ≈ ${vol.toFixed(2)}%.`});
+
+  return out;
+}
+
+/* -------------------- 4. RENDERING -------------------- */
+const $ = id => document.getElementById(id);
+const fmt = (v,d=4)=> v==null||isNaN(v) ? "—" : Number(v).toLocaleString(undefined,{maximumFractionDigits:d,minimumFractionDigits:Math.min(2,d)});
+const nameOf = c => state.names[c] || FALLBACK_NAMES[c] || c.toUpperCase();
+
+function trendClass(p){ return p>0.05?"up":p<-0.05?"down":"flat"; }
+function trendWord(p){ return p>0.05?"Uptrend":p<-0.05?"Downtrend":"Stable"; }
+
+// --- Current value card ---
+function renderCurrent(){
+  const {base,target,latest,yesterday,series}=state;
+  const rate = latest?.[base]?.[target];
+  $("pairLabel").textContent = `${base.toUpperCase()}/${target.toUpperCase()}`;
+  $("rateBig").textContent = fmt(rate,4);
+
+  // daily change vs most recent prior day
+  let chg=null;
+  const prev = yesterday?.[base]?.[target];
+  if(prev) chg = ((rate-prev)/prev)*100;
+  const cv=$("changeVal");
+  if(chg==null){ cv.textContent="n/a"; cv.className="change flat"; }
+  else{ cv.textContent=`${chg>=0?"▲ +":"▼ "}${chg.toFixed(3)}%`; cv.className="change "+trendClass(chg); }
+
+  const badge=$("trendBadge");
+  badge.textContent=trendWord(chg??0);
+  badge.className="badge "+trendClass(chg??0);
+
+  // 7d stats from series
+  const closes=series.map(p=>p.rate);
+  if(closes.length){
+    $("m7high").textContent=fmt(Math.max(...closes),4);
+    $("m7low").textContent=fmt(Math.min(...closes),4);
+    $("mvol").textContent=(stdev(returns(closes))*100).toFixed(2)+"%";
+  }
+}
+
+// --- Table ---
+function computeTable(){
+  const {base,latest,yesterday}=state;
+  const cur=latest?.[base]||{};
+  const prev=yesterday?.[base]||{};
+  const rows=[];
+  for(const code in cur){
+    if(code===base) continue;
+    const rate=cur[code];
+    const p=prev[code];
+    const change = (p!=null && p!==0) ? ((rate-p)/p)*100 : null;
+    rows.push({code,name:nameOf(code),rate,change});
+  }
+  // mark strongest / weakest by change among comparable rows
+  const withChg=rows.filter(r=>r.change!=null);
+  if(withChg.length){
+    let s=withChg[0], w=withChg[0];
+    for(const r of withChg){ if(r.change>s.change)s=r; if(r.change<w.change)w=r; }
+    s.lead="s"; w.lead="w";
+  }
+  state.table=rows;
+}
+function renderTable(){
+  const q=$("tableSearch").value.trim().toLowerCase();
+  const {key,dir}=state.sort;
+  let rows=state.table.slice();
+  if(q) rows=rows.filter(r=>r.code.includes(q)||r.name.toLowerCase().includes(q));
+  rows.sort((a,b)=>{
+    let av=a[key], bv=b[key];
+    if(key==="change"){ av=av??-Infinity; bv=bv??-Infinity; }
+    if(typeof av==="string") return av.localeCompare(bv)*dir;
+    return (av-bv)*dir;
+  });
+  const body=$("rateBody");
+  body.innerHTML = rows.map(r=>{
+    const cls = trendClass(r.change??0);
+    const sign = r.change==null?"":(r.change>=0?"+":"");
+    const lead = r.lead==="s"?`<span class="lead s">Strong</span>`:r.lead==="w"?`<span class="lead w">Weak</span>`:"";
+    const rowCls = r.lead==="s"?"row-strong":r.lead==="w"?"row-weak":"";
+    const arrow = r.change==null?"·":r.change>0.05?"▲":r.change<-0.05?"▼":"—";
+    return `<tr class="${rowCls}">
+      <td class="code">${r.code.toUpperCase()}${lead}</td>
+      <td class="name">${r.name}</td>
+      <td class="num">${fmt(r.rate,r.rate<10?5:2)}</td>
+      <td class="num"><span class="pill ${cls}">${r.change==null?"n/a":sign+r.change.toFixed(2)+"%"}</span></td>
+      <td>${arrow} ${trendWord(r.change??0)}</td>
+    </tr>`;
+  }).join("");
+  $("tableCount").textContent=`${rows.length} currencies`;
+  $("tableBaseLbl").textContent=`(1 ${state.base.toUpperCase()} = …)`;
+  // header arrows
+  document.querySelectorAll("thead th[data-sort]").forEach(th=>{
+    const a=th.querySelector(".arr");
+    if(!a) return;
+    a.textContent = th.dataset.sort===key ? (dir>0?"▲":"▼") : "";
+  });
+}
+
+// --- AI + patterns ---
+function renderAI(){
+  const ins=buildInsights(state.series,state.base,state.target);
+  $("aiList").innerHTML = ins.map(i=>`<div class="insight"><div class="ic">${i.ic}</div><p>${i.t}<span>${i.s||""}</span></p></div>`).join("");
+}
+function renderPatterns(){
+  const ps=detectPatterns(state.series);
+  $("patternList").innerHTML = ps.map(p=>`<div class="pattern"><span class="tag ${p.cls}">${p.tag}</span><small>${p.text}</small></div>`).join("");
+}
+
+// --- Heatmap (basket-weighted 7-day strength from USD cross rates) ---
+async function renderHeatmap(){
+  const grid=$("heatGrid");
+  grid.innerHTML = MAJORS.map(()=>`<div class="heat-cell skeleton" style="height:78px"></div>`).join("");
+  // Cross rate C->O derived from USD file: rate = usd[O]/usd[C]
+  const now = await getLatest("usd");
+  const past = await getRecentPast("usd",7,7);
+  if(!now?.usd || !past?.usd){ grid.innerHTML=`<div style="color:var(--text-faint);font-size:.8rem">Heatmap data unavailable.</div>`; return; }
+  const N=now.usd, P=past.usd;
+  const valNow=c=> c==="usd"?1:N[c], valPast=c=> c==="usd"?1:P[c];
+  const strength={};
+  for(const c of MAJORS){
+    const diffs=[];
+    for(const o of MAJORS){
+      if(o===c) continue;
+      const rNow=valNow(o)/valNow(c), rPast=valPast(o)/valPast(c);
+      if(rPast) diffs.push(((rNow-rPast)/rPast)*100);
+    }
+    strength[c]=mean(diffs);
+  }
+  const vals=Object.values(strength);
+  const lo=Math.min(...vals), hi=Math.max(...vals), span=(hi-lo)||1;
+  // cool color ramp: muted navy (weak) -> bright mint/cyan (strong). No purple.
+  const ramp=t=>{
+    const stops=[[11,34,51],[14,74,90],[19,138,138],[31,182,166],[127,240,200]];
+    const x=t*(stops.length-1), i=Math.min(stops.length-2,Math.floor(x)), f=x-i;
+    const c=stops[i].map((v,k)=>Math.round(v+(stops[i+1][k]-v)*f));
+    return `rgb(${c[0]},${c[1]},${c[2]})`;
+  };
+  const ordered=[...MAJORS].sort((a,b)=>strength[b]-strength[a]);
+  grid.innerHTML = ordered.map((c,idx)=>{
+    const t=(strength[c]-lo)/span;
+    const tag = idx===0?"Strongest":idx===ordered.length-1?"Weakest":(strength[c]>=0?"Firm":"Soft");
+    return `<div class="heat-cell" style="background:${ramp(t)};${t<0.4?'color:#cfe8f2':''}">
+      <div class="code">${c.toUpperCase()}</div>
+      <div class="pct">${strength[c]>=0?"+":""}${strength[c].toFixed(2)}%</div>
+      <div class="lbl">${tag}</div></div>`;
+  }).join("");
+}
+
+/* -------------------- CHARTS -------------------- */
+let candleChart, lineChart;
+function themeColors(){
+  const cs=getComputedStyle(document.documentElement);
+  return {
+    text:cs.getPropertyValue("--text-dim").trim(),
+    grid:cs.getPropertyValue("--grid").trim(),
+    up:cs.getPropertyValue("--c-up").trim(),
+    down:cs.getPropertyValue("--c-down").trim(),
+    accent:cs.getPropertyValue("--accent").trim(),
+    accent2:cs.getPropertyValue("--accent-2").trim(),
+    slate:cs.getPropertyValue("--c-slate").trim(),
+  };
+}
+function renderCandles(){
+  const tc=themeColors();
+  state.candles=buildCandles(state.series);
+  const ctx=$("candleChart");
+  if(candleChart) candleChart.destroy();
+  candleChart=new Chart(ctx,{
+    type:"candlestick",
+    data:{datasets:[{
+      label:`${state.base.toUpperCase()}/${state.target.toUpperCase()} (est.)`,
+      data:state.candles,
+      // chartjs-chart-financial uses the *plural* keys; keeps candles on the
+      // cool palette (teal = up, slate-blue = down) — no warm reds.
+      backgroundColors:{up:tc.up,down:tc.down,unchanged:tc.slate},
+      borderColors:{up:tc.up,down:tc.down,unchanged:tc.slate},
+    }]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{
+        label:c=>{const o=c.raw;return [`O ${fmt(o.o,4)}`,`H ${fmt(o.h,4)}`,`L ${fmt(o.l,4)}`,`C ${fmt(o.c,4)}`];}
+      }}},
+      scales:{
+        x:{type:"time",time:{unit:state.range>30?"week":"day"},grid:{color:tc.grid},ticks:{color:tc.text,maxRotation:0,autoSkip:true,maxTicksLimit:8}},
+        y:{grid:{color:tc.grid},ticks:{color:tc.text}}
+      }
+    }
+  });
+}
+function renderLine(){
+  const tc=themeColors();
+  const labels=state.series.map(p=>p.date);
+  const data=state.series.map(p=>p.rate);
+  const ma=sma(data,7);
+  const ctx=$("lineChart");
+  if(lineChart) lineChart.destroy();
+  // gradient fill under the line
+  const g=ctx.getContext("2d").createLinearGradient(0,0,0,320);
+  g.addColorStop(0,"rgba(34,211,238,.30)"); g.addColorStop(1,"rgba(34,211,238,0)");
+  lineChart=new Chart(ctx,{
+    type:"line",
+    data:{labels,datasets:[
+      {label:"Rate",data,borderColor:tc.accent,backgroundColor:g,fill:true,tension:.3,pointRadius:0,borderWidth:2.4},
+      {label:"7-day MA",data:ma,borderColor:tc.accent2,borderDash:[6,5],fill:false,tension:.3,pointRadius:0,borderWidth:1.8}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:"index",intersect:false},
+      plugins:{legend:{display:true,labels:{color:tc.text,boxWidth:14,usePointStyle:true}},
+        tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${fmt(c.parsed.y,5)}`}}},
+      scales:{
+        x:{grid:{color:tc.grid},ticks:{color:tc.text,maxRotation:0,autoSkip:true,maxTicksLimit:8}},
+        y:{grid:{color:tc.grid},ticks:{color:tc.text}}
+      }
+    }
+  });
+}
+
+/* -------------------- 5. CALCULATOR -------------------- */
+async function runCalc(){
+  const amt=parseFloat($("calcAmount").value)||0;
+  const from=$("calcFrom").value, to=$("calcTo").value;
+  try{
+    const data=await getLatest(from);
+    const rate = from===to ? 1 : data?.[from]?.[to];
+    if(rate==null){ $("calcOut").textContent="—"; $("calcRate").textContent="rate unavailable"; return; }
+    const res=amt*rate;
+    $("calcOut").textContent=`${fmt(res, res<10?4:2)} ${to.toUpperCase()}`;
+    $("calcRate").textContent=`1 ${from.toUpperCase()} = ${fmt(rate,6)} ${to.toUpperCase()}`;
+  }catch{ $("calcRate").textContent="rate unavailable"; }
+}
+
+/* -------------------- DATA FETCH ORCHESTRATION -------------------- */
+// Fetch the rate series for the selected target across the chosen range.
+// Dates are counted back from the latest data date; requests are throttled.
+async function fetchSeries(){
+  const {base,target,range}=state;
+  const ld=latestDate();
+  const step = range>60 ? 3 : 1;               // sample longer ranges to limit requests
+  const offsets=[]; for(let off=0;off<=range;off+=step) offsets.push(off);
+  const results = await mapLimit(offsets,6, async off=>{
+    if(off===0){ const d=state.latest||await getLatest(base); return d?{date:d.date,rate:d[base]?.[target]}:null; }
+    const d=await getDated(base, ymdMinus(ld,off));
+    return d && d[base]?.[target]!=null ? {date:d.date,rate:d[base][target]} : null;
+  });
+  // dedupe by date + sort ascending
+  const map=new Map();
+  results.filter(Boolean).forEach(p=>{ if(p.rate!=null) map.set(p.date,p.rate); });
+  state.series=[...map.entries()].map(([date,rate])=>({date,rate})).sort((a,b)=>a.date<b.date?-1:1);
+}
+
+// Refresh only the series-dependent widgets (line, candles, AI, patterns, value stats).
+async function refreshSeries(){
+  await fetchSeries();
+  renderLine(); renderCandles(); renderAI(); renderPatterns(); renderCurrent();
+}
+
+// Full refresh. Core widgets (value, table, calculator) render first from the
+// two base files; charts + heatmap then load progressively in the background.
+async function refreshAll(){
+  showLoading(true,"Fetching exchange data…");
+  $("refreshBtn").classList.add("spin");
+  try{
+    state.cache.clear();
+    state.latest = await getLatest(state.base);
+    state.yesterday = await getRecentPast(state.base,1,7);
+    computeTable(); renderTable();
+    renderCurrent();          // show rate + daily change immediately
+    stampUpdated();
+    await runCalc();
+    showLoading(false);       // core dashboard is now usable
+    // Progressive load — failures here never block the core dashboard.
+    await Promise.allSettled([ refreshSeries(), renderHeatmap() ]);
+  }catch(e){
+    showError("Could not load exchange data ("+(e.message||"unknown")+"). Primary & fallback endpoints unreachable.");
+  }finally{
+    showLoading(false);
+    $("refreshBtn").classList.remove("spin");
+  }
+}
+
+/* -------------------- 6. THEME / EVENTS / INIT -------------------- */
+function stampUpdated(){
+  const t=new Date();
+  $("updatedAt").textContent=t.toLocaleString(undefined,{hour:"2-digit",minute:"2-digit",second:"2-digit",day:"2-digit",month:"short"});
+  const dataDate = state.latest?.date ? ` · data date ${state.latest.date}` : "";
+  $("srcLabel").textContent=dataDate;
+}
+function showLoading(on,msg){ if(msg)$("loadMsg").textContent=msg; $("overlay").classList.toggle("show",on); }
+function showError(msg){ $("toastMsg").textContent=msg; const t=$("toast"); t.classList.add("show"); clearTimeout(showError._t); showError._t=setTimeout(()=>t.classList.remove("show"),7000); }
+
+function applyTheme(theme){
+  document.documentElement.setAttribute("data-theme",theme);
+  $("themeIcon").textContent = theme==="dark"?"🌙":"☀️";
+  localStorage.setItem("fxpulse-theme",theme);
+  // re-render charts so they pick up theme colors
+  if(state.series.length){ renderLine(); renderCandles(); }
+}
+
+function fillSelect(sel,selected){
+  const codes=Object.keys(state.names).sort();
+  sel.innerHTML=codes.map(c=>`<option value="${c}" ${c===selected?"selected":""}>${c.toUpperCase()} — ${nameOf(c)}</option>`).join("");
+}
+
+function bindEvents(){
+  $("baseSel").addEventListener("change",e=>{ state.base=e.target.value; refreshAll(); });
+  $("targetSel").addEventListener("change",e=>{ state.target=e.target.value; refreshSeries(); });
+  $("refreshBtn").addEventListener("click",refreshAll);
+  $("themeBtn").addEventListener("click",()=>{
+    applyTheme(document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark");
+  });
+  // range buttons
+  $("rangeBtns").addEventListener("click",e=>{
+    const b=e.target.closest("button"); if(!b) return;
+    state.range=+b.dataset.d;
+    document.querySelectorAll("#rangeBtns button").forEach(x=>x.classList.toggle("active",x===b));
+    showLoading(true,"Loading "+state.range+"-day history…");
+    refreshSeries().finally(()=>showLoading(false));
+  });
+  // table search + sort
+  $("tableSearch").addEventListener("input",renderTable);
+  document.querySelectorAll("thead th[data-sort]").forEach(th=>{
+    th.addEventListener("click",()=>{
+      const k=th.dataset.sort;
+      if(state.sort.key===k) state.sort.dir*=-1; else state.sort={key:k,dir:k==="code"||k==="name"?1:-1};
+      renderTable();
+    });
+  });
+  // calculator
+  ["input","change"].forEach(ev=>{
+    $("calcAmount").addEventListener(ev,runCalc);
+    $("calcFrom").addEventListener("change",runCalc);
+    $("calcTo").addEventListener("change",runCalc);
+  });
+  $("calcSwap").addEventListener("click",()=>{
+    const f=$("calcFrom").value; $("calcFrom").value=$("calcTo").value; $("calcTo").value=f; runCalc();
+  });
+}
+
+async function init(){
+  // theme first (no flash)
+  applyTheme(localStorage.getItem("fxpulse-theme")||"dark");
+  // currency names for selectors
+  try{ state.names=await fetchJson(urlsNames()); }
+  catch{ state.names={...FALLBACK_NAMES}; showError("Currency list endpoint failed — using a reduced fallback list."); }
+  fillSelect($("baseSel"),state.base);
+  fillSelect($("targetSel"),state.target);
+  fillSelect($("calcFrom"),"usd");
+  fillSelect($("calcTo"),"eur");
+  bindEvents();
+  await refreshAll();
+}
+
+// Wait for Chart.js (and financial plugin) then boot.
+window.addEventListener("DOMContentLoaded",init);
+</script>
+</body>
+</html>
