@@ -6,17 +6,6 @@ FX Pulse is a single-page foreign exchange dashboard that visualizes live curren
 rates, trends, and patterns. It runs entirely in the browser with no build step and
 no backend — just open the HTML file and go.
 
-## About
-
-This is a group project developed for the subject **IT Infrastructure and Network
-Technologies**.
-
-**Team members:**
-
-- _Add member name here_
-- _Add member name here_
-- _Add member name here_
-
 ## Overview
 
 The dashboard fetches free, daily exchange rates and presents them through an
