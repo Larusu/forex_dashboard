@@ -13,6 +13,10 @@ interactive UI built with plain HTML, CSS, and JavaScript. Charts are rendered w
 [Chart.js](https://www.chartjs.org/) (plus the financial and Luxon adapters), loaded
 directly from a CDN. There are no local dependencies to install.
 
+## About
+
+This is a group project developed for the subject **IT Infrastructure and Network Technologies**.
+
 ## Features
 
 - **Current value** — live rate for any base/target pair, with daily change, 7-day high/low, and a volatility readout.
